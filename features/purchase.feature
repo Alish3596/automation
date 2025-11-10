@@ -2,6 +2,7 @@ Feature: Ledger Cloud Purchase Module
 
   Scenario: Create and manage purchase flow
     Given the user is logged in with email "alisha.fathima@indiafilings.com" and password "Alisha@123"
+   When the user selects the business "STOCK HOLDING CORPORATION OF INDIA LIMITED"
     When the user creates a purchase order for supplier "Ram" with item "item1"
     And the user converts that purchase order into a purchase bill
     And the user reconciles the purchase bill with a payment voucher

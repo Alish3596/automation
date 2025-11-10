@@ -9,8 +9,13 @@ export class CreateDebitNotePage {
   }
 
   async createDebitNote() {
-    await this.page.click('text=Convert to Debit Note'); // adjust selector
-    await this.page.click(this.createDNButton);
+    const convertTrigger = this.page.locator('text=Convert to Debit Note').first();
+    await convertTrigger.waitFor({ state: 'visible', timeout: 30000 });
+    await convertTrigger.click();
+
+    const createButton = this.page.locator(this.createDNButton).first();
+    await createButton.waitFor({ state: 'visible', timeout: 30000 });
+    await createButton.click();
     console.log('✅ Debit Note created');
   }
 }
