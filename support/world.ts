@@ -1,4 +1,4 @@
-import { setWorldConstructor } from '@cucumber/cucumber';
+import { setWorldConstructor, After } from '@cucumber/cucumber';
 import { Browser, chromium, Page } from 'playwright';
 
 export class CustomWorld {
@@ -12,8 +12,14 @@ export class CustomWorld {
   }
 
   async closeBrowser() {
-    await this.browser.close();
+    if (this.browser) {
+      await this.browser.close();
+    }
   }
 }
 
 setWorldConstructor(CustomWorld);
+
+After(async function () {
+  await this.closeBrowser();
+});

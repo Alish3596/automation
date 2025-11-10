@@ -34,5 +34,4 @@ When('the user selects the business {string}', async function (businessName: str
 
 Then('the Ledgers page should be displayed', async function () {
   await menuPage.verifyCreateMenuVisible(); // ✅ now checks for "Create" menu visibility
-  await this.closeBrowser();
 });
