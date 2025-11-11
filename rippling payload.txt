@@ -1,0 +1,108 @@
+  {
+        "employee_pan": "ABPKA8089Z",//Validated *
+        "employee_data": [
+            {
+                "employee_info": {
+                    "employee_name": "Anitha Sampath L",//allows special character and space
+                    "employee_uan": "61369953418",//validated shold be numeric(12 digit)
+                    "employee_esic_number": "ESIC89018",//need to be validated
+                    "employee_dob": "1997-08-05",//validated
+                    "gender": "Female",//validated
+                    "city":"kerala",
+                    "state": "Kerala",//not validated
+                    "type_of_employee": "Full-Time",//not validated
+                    "nature_of_employement": "abc",//not validated
+                    "date_of_joining": "2027-08-20",//validated
+                    // "date_of_exit": "2009-12-20",//validated
+                    "exit_reason": "hsjsh",
+                    "employee_city": "Madurai",//not validated
+                    "prior_earnings": [
+                        {
+                            "financial_year": "2027-2028",//validated
+                            "gross_salary": "250000",//validated
+                            "tax_deducted": "9972.50",//validated
+                            "pt_deducted": "4.50",//validated
+                            "month": "JUL",//validated
+                            "year": "2027"
+                        },{
+                            "financial_year": "2027-2028",//validated
+                            "gross_salary": "250000",//validated
+                            "tax_deducted": "9972.50",//validated
+                            "pt_deducted": "4.50",//validated
+                            "month": "AUG",//validated
+                            "year": "2027"
+                        }//mulitple json can be given under prior earnings, no restriction
+                        // {
+                        //     "financial_year": "2027-2028",
+                        //     "gross_salary": "JUN",
+                        //     "tax_deducted": "",
+                        //     "pt_deducted": "",
+                        //     "month": "",
+                        //     "year": "789"
+                        // }
+                    ]
+                },
+                "salary_info": [
+                    {
+                        "gross_earnings": 253010,
+                        "basic": 97956,
+                        "hra": 8475,
+                        "other_allowances": 3327
+                    }
+                    
+                ],
+                "payable_day": {
+                    "payable_day": "21.5"//validated it must be numeric
+                },
+                "retirement_benefits": {
+                    "epf_wages": "2792",//validated it must be numeric
+                    "eps_wages": "1679",//validated it must be numeric
+                    "eps_ineligible": 0,//validated (boolean)
+                    "eps_higher_pension_opted": 1,//validated (boolean)
+                    "pf_rate_employee_override": 1,//validated (boolean)
+                    "pf_rate_employee_percentage": 12,
+                    "pf_rate_employer_override": 1,//validated (boolean)
+                    "pf_rate_employer_percentage": 12,
+                    "ncp_days": 3,
+                    "lwf_employer_contribution": 50,
+                    "lwf_employee_contribution": 16
+                },
+                "tax_info": {
+                    "taxable_income": "631651",//validated(numeric)
+                    "income_tax": "9712",//validated(numeric)
+                    "tax_deducted": "5431",//validated
+                    "cess": "4999",//validated numeric
+                    "surcharge": "9008",//validated numeric
+                    "rebate": "9008",//validated numeric
+                    "regime": "Old"//validated(old or new)
+                },
+                "investments_info": {
+                    "pt_exemption_amount": "2500",//validated numeric
+                    "rent_paid": "148022",//validated numeric
+                    "landlord_pan": "WAQEF2704X",
+                    "landlord_name": "Landlord1",
+                    "section_24": "18637",//validated numeric
+                    "lender_pan": "ZBDDP6242V",
+                    "lender_name": "ICICI Bank",
+                    "section_80c": "148476",
+                    "section_80ccc": "148476",
+                    "section_80ccd1": "148476",
+                    "section_80ccd1b": "148476",
+                    "section_80ccd2": "148476",
+                    "section_80d": "148476",
+                    "section_80dd": "148476",
+                    "section_80ddb": "148476",
+                    "section_80e": "148476",
+                    "section_80ee": "148476",
+                    "section_80eea": "148476",
+                    "section_80eeb": "148476",
+                    "section_80u": "148476",
+                    "section_80g": "148476",
+                    "section_80gga": "148476",
+                    "section_80ggc": "148476"
+                }
+            }
+        ]
+    }
+    ]
+}

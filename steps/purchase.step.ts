@@ -97,3 +97,23 @@ Then('an error message should be displayed indicating the GSTIN is already assoc
   await createPOPage.verifyGstinError();
   await this.closeBrowser();
 });
+
+// --- Then: Check status in manage page ---
+Then('check the status of the purchase order in the manage page should be {string}', async function (status: string) {
+  ensurePurchasePagesInitialized(this);
+  await managePOPage.verifyStatusInManagePage(status);
+});
+
+// --- And: Check search, sort, pagination and filter functionality ---
+Then('check the search, sort, pagination and filter functionality in the manage purchase order page should be working', async function () {
+  ensurePurchasePagesInitialized(this);
+  await managePOPage.verifySearchSortPaginationFilter();
+});
+
+// --- Then: Check delete functionality ---
+Then('check the delete functionality by deleting the created purchase order and check the purchase order is deleted from the list', async function () {
+  ensurePurchasePagesInitialized(this);
+  await managePOPage.deletePurchaseOrder();
+  await managePOPage.verifyPurchaseOrderDeleted();
+  await this.closeBrowser();
+});
