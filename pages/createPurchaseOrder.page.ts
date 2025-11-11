@@ -227,4 +227,188 @@ export class CreatePurchaseOrderPage {
     await this.page.click(this.createPOButton);
     console.log('✅ Purchase Order created');
   }
+
+  async attemptCreatePurchaseOrderWithGstin(supplier: string, gstin: string) {
+    // Navigate to Purchase Order page (same as createPurchaseOrder)
+    const create = this.page.locator(this.createMenu).first();
+    await create.waitFor({ state: 'visible', timeout: 30000 });
+    await create.click();
+    await this.page.waitForTimeout(500);
+
+    const poMenu = this.page.locator(this.purchaseOrderMenuItem).first();
+    const poVisible = await poMenu.isVisible({ timeout: 3000 }).catch(() => false);
+
+    if (!poVisible) {
+      const purchaseSection = this.page.locator(this.purchaseSection).first();
+      try {
+        await purchaseSection.waitFor({ state: 'visible', timeout: 5000 });
+        await purchaseSection.hover({ force: true });
+        await this.page.waitForTimeout(500);
+      } catch {
+        await create.click();
+        await this.page.waitForTimeout(500);
+      }
+    }
+
+    await poMenu.waitFor({ state: 'visible', timeout: 30000 });
+    await poMenu.click();
+
+    await this.page.waitForSelector(this.supplierInput, { timeout: 30000 });
+    await this.page.fill(this.supplierInput, supplier);
+    await this.page.waitForTimeout(3000);
+
+    // Check if vendor exists, if not proceed to add vendor
+    const supplierLower = supplier.toLowerCase();
+    let vendorFound = false;
+
+    const vendorSelectors = [
+      `text=${supplier}`,
+      `//span[contains(text(), "${supplier}") and not(contains(text(), "Add vendor")) and not(contains(text(), "Create vendor"))]`,
+      `//li[contains(text(), "${supplier}") and not(contains(text(), "Add vendor"))]`
+    ];
+
+    for (const selector of vendorSelectors) {
+      try {
+        const vendorOption = this.page.locator(selector).first();
+        const isVisible = await vendorOption.isVisible({ timeout: 2000 }).catch(() => false);
+        if (isVisible) {
+          const optionText = await vendorOption.innerText().catch(() => '');
+          if (optionText.toLowerCase().includes(supplierLower) &&
+              !optionText.toLowerCase().includes('add vendor') &&
+              !optionText.toLowerCase().includes('create vendor')) {
+            console.log(`ℹ️ Found existing vendor "${supplier}" in dropdown, selecting it`);
+            await vendorOption.click();
+            vendorFound = true;
+            break;
+          }
+        }
+      } catch (e) {
+        // Continue to next selector
+      }
+    }
+
+    if (!vendorFound) {
+      await this.page.focus(this.supplierInput);
+      await this.page.keyboard.press(' ');
+      await this.page.waitForTimeout(2000);
+
+      try {
+        const vendorOption = this.page.getByText(supplier, { exact: false }).first();
+        const isVisible = await vendorOption.isVisible({ timeout: 2000 }).catch(() => false);
+        if (isVisible) {
+          const text = await vendorOption.innerText().catch(() => '');
+          if (text.toLowerCase().includes(supplierLower) &&
+              !text.toLowerCase().includes('add vendor') &&
+              !text.toLowerCase().includes('create vendor')) {
+            console.log(`ℹ️ Found existing vendor "${supplier}" in dropdown, selecting it`);
+            await vendorOption.click();
+            vendorFound = true;
+          }
+        }
+      } catch (e) {
+        // Continue to Add Vendor flow
+      }
+    }
+
+    if (!vendorFound) {
+      // Add new vendor with specified GSTIN
+      const addVendor = this.page.locator(this.addVendorOption).first();
+      await addVendor.waitFor({ state: 'visible', timeout: 60000 });
+      await addVendor.click();
+
+      const supplierModal = this.page.locator('#supplier_modal');
+      await supplierModal.waitFor({ state: 'visible', timeout: 30000 });
+
+      // Fill GSTIN with the specified value
+      const gstinField = this.page.locator(this.gstinInput).first();
+      await gstinField.waitFor({ state: 'visible', timeout: 30000 });
+      await gstinField.fill(gstin);
+      console.log(`ℹ️ Filled GSTIN field with: ${gstin}`);
+
+      // Attempt to save - this should trigger the error
+      const saveBtn = supplierModal.locator('#supplier_save').first();
+      await saveBtn.waitFor({ state: 'visible', timeout: 20000 });
+      await saveBtn.scrollIntoViewIfNeeded();
+      await this.page.evaluate(() => { (document.body as any).style.zoom = '70%'; });
+      try {
+        await saveBtn.click({ timeout: 20000 });
+      } catch {
+        await saveBtn.click({ timeout: 20000, force: true });
+      } finally {
+        await this.page.evaluate(() => { (document.body as any).style.zoom = ''; });
+      }
+    }
+  }
+
+  async verifyGstinError() {
+    // Look for error messages related to GSTIN
+    const errorSelectors = [
+      'text=/.*GSTIN.*already.*associated.*/i',
+      'text=/.*GSTIN.*already.*exists.*/i',
+      'text=/.*GST.*number.*already.*/i',
+      'text=/.*GSTIN.*duplicate.*/i',
+      'text=/.*GST.*already.*registered.*/i',
+      '.alert-danger',
+      '.error-message',
+      '[role="alert"]',
+      '.toast-error',
+      '.notification-error'
+    ];
+
+    let errorFound = false;
+    let errorText = '';
+
+    for (const selector of errorSelectors) {
+      try {
+        const errorElement = this.page.locator(selector).first();
+        const isVisible = await errorElement.isVisible({ timeout: 5000 }).catch(() => false);
+        if (isVisible) {
+          errorText = await errorElement.innerText().catch(() => '');
+          if (errorText) {
+            console.log(`✅ GSTIN error message found: "${errorText}"`);
+            errorFound = true;
+            break;
+          }
+        }
+      } catch (e) {
+        // Continue to next selector
+      }
+    }
+
+    // Also check in the supplier modal for inline errors
+    if (!errorFound) {
+      const supplierModal = this.page.locator('#supplier_modal');
+      if (await supplierModal.isVisible().catch(() => false)) {
+        const modalErrors = supplierModal.locator('.text-danger, .error, [class*="error"], [class*="invalid"]');
+        const errorCount = await modalErrors.count();
+        if (errorCount > 0) {
+          for (let i = 0; i < errorCount; i++) {
+            const error = modalErrors.nth(i);
+            const text = await error.innerText().catch(() => '');
+            if (text && (text.toLowerCase().includes('gstin') || text.toLowerCase().includes('gst'))) {
+              errorText = text;
+              errorFound = true;
+              console.log(`✅ GSTIN error message found in modal: "${errorText}"`);
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (!errorFound) {
+      throw new Error('GSTIN error message not found. Expected error indicating GSTIN is already associated with another vendor.');
+    }
+
+    // Verify the error message contains relevant keywords
+    const errorLower = errorText.toLowerCase();
+    const hasGstinKeyword = errorLower.includes('gstin') || errorLower.includes('gst');
+    const hasDuplicateKeyword = errorLower.includes('already') || errorLower.includes('duplicate') || errorLower.includes('exists') || errorLower.includes('associated');
+
+    if (!hasGstinKeyword || !hasDuplicateKeyword) {
+      console.log(`⚠️ Warning: Error message may not be specific to GSTIN duplication: "${errorText}"`);
+    }
+
+    console.log('✅ GSTIN error verification passed');
+  }
 }

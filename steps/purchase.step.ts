@@ -84,3 +84,16 @@ Then('the purchase bill status should be {string}', async function (status: stri
   // Optional: close browser after test
   await this.closeBrowser();
 });
+
+// --- When: Attempt to create PO with specific GSTIN (for error testing) ---
+When('the user attempts to create a purchase order for supplier {string} with GSTIN {string}', async function (supplier: string, gstin: string) {
+  ensurePurchasePagesInitialized(this);
+  await createPOPage.attemptCreatePurchaseOrderWithGstin(supplier, gstin);
+});
+
+// --- Then: Verify GSTIN error message ---
+Then('an error message should be displayed indicating the GSTIN is already associated with another vendor', async function () {
+  ensurePurchasePagesInitialized(this);
+  await createPOPage.verifyGstinError();
+  await this.closeBrowser();
+});
