@@ -39,4 +39,30 @@ export class MenuPage {
     await expect(menuItem).toBeVisible({ timeout: 10000 });
     console.log(`✅ Menu item "${menuName}" is visible`);
   }
+
+  async navigateToManageContacts() {
+    const manageMenu = this.page.locator('text=/^Manage$/').first();
+    await manageMenu.waitFor({ state: 'visible', timeout: 15000 });
+    await manageMenu.click();
+    await this.page.waitForTimeout(500);
+
+    const contactsMenuCandidates = [
+      'text=/^Contacts$/',
+      'text=/Manage Contacts/',
+      'a[href*="/contacts/manage-contacts"]',
+    ];
+
+    for (const selector of contactsMenuCandidates) {
+      const contactsMenu = this.page.locator(selector).first();
+      const visible = await contactsMenu.isVisible({ timeout: 2000 }).catch(() => false);
+      if (visible) {
+        await contactsMenu.click();
+        console.log(`✅ Navigated to Contacts via selector: ${selector}`);
+        await this.page.waitForLoadState('networkidle', { timeout: 15000 });
+        return;
+      }
+    }
+
+    throw new Error('Unable to locate Manage → Contacts menu item');
+  }
 }

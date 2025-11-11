@@ -46,10 +46,14 @@ Given('the user is logged in with email {string} and password {string}', async f
 });
 
 // --- When: Create Purchase Order ---
-When('the user creates a purchase order for supplier {string} with item {string}', async function (supplier: string, item: string) {
+When(
+  'the user creates a purchase order for supplier {string} with item {string}',
+  async function (this: CustomWorld, supplier: string, item: string) {
   ensurePurchasePagesInitialized(this);
-  await createPOPage.createPurchaseOrder(supplier, item);
-});
+    const excludeNames = this.selectedBusinessName ? [this.selectedBusinessName] : [];
+    await createPOPage.createPurchaseOrder(supplier, item, { excludeNames });
+  },
+);
 
 // --- When: Convert PO to Purchase Bill ---
 When('the user converts that purchase order into a purchase bill', async function () {

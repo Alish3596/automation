@@ -4,6 +4,7 @@ import { Browser, chromium, Page } from 'playwright';
 export class CustomWorld {
   browser!: Browser;
   page!: Page;
+  selectedBusinessName?: string;
 
   async launchBrowser() {
     this.browser = await chromium.launch({ headless: false });

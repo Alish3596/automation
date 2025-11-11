@@ -5,7 +5,12 @@ export class CreatePurchaseOrderPage {
   readonly supplierInput = '#supplier_list';
   readonly itemInput = 'input[placeholder="Item name"]';
   readonly createPOButton = 'button:has-text("Create Purchase Order")';
-  readonly createMenu = 'text=Create';
+  readonly createMenuSelectors = [
+    'header a:has-text("Create")',
+    'header button:has-text("Create")',
+    'header >> text=/^Create$/',
+    'text=/^Create$/',
+  ];
   readonly purchaseSection = 'text=Purchases';
   readonly purchaseOrderMenuItem = 'text=Purchase Order';
   // Vendor dropdown + actions
@@ -46,55 +51,342 @@ export class CreatePurchaseOrderPage {
     this.page = page;
   }
 
-  async fetchVendorNameFromManageContacts(): Promise<string | null> {
+  async fetchVendorNameFromManageContacts(excludeNames: string[] = []): Promise<string | null> {
+    const page = this.page;
+    let vendorResult: string | null = null;
+
+    console.log('ℹ️ Navigating via Manage menu to Contacts to fetch vendor name...');
+
+    const normalizedExcludes = excludeNames
+      .filter(Boolean)
+      .map((name) => name.trim().toLowerCase())
+      .filter((name) => name.length > 0);
+
     try {
-      console.log('ℹ️ Fetching vendor name from manage contacts page...');
-      await this.page.goto('https://in.ledgers.cloud/contacts/manage-contacts', { waitUntil: 'networkidle', timeout: 30000 });
-      await this.page.waitForTimeout(2000);
-      
-      // Try to find the first vendor name in the table/list
-      const vendorSelectors = [
-        'table tbody tr:first-child td:first-child',
-        'table tbody tr:first-child td:nth-child(2)',
-        '[class*="table"] tbody tr:first-child td',
-        'tbody tr:first-child td',
-        '[data-testid*="vendor"]:first-child',
-        '.vendor-name:first-child',
-        'tr:first-child td:first-child'
+      const manageMenu = page.locator('text=/^Manage$/').first();
+      await manageMenu.waitFor({ state: 'visible', timeout: 20000 });
+      await manageMenu.click();
+      await page.waitForTimeout(500);
+
+      const contactsSelectors = [
+        'text=/^Contacts$/',
+        'text=/Manage Contacts/',
+        'a[href*="/contacts/manage-contacts"]',
+        '[data-testid="menu-item-contacts"]',
       ];
-      
-      for (const selector of vendorSelectors) {
+
+      let contactsOpened = false;
+      for (const selector of contactsSelectors) {
+        const contactsMenu = page.locator(selector).first();
+        const visible = await contactsMenu.isVisible({ timeout: 2000 }).catch(() => false);
+        if (visible) {
+          await contactsMenu.click();
+          console.log(`ℹ️ Opened Contacts using selector: ${selector}`);
+          contactsOpened = true;
+          break;
+        }
+      }
+
+      if (!contactsOpened) {
+        throw new Error('Manage → Contacts menu item not found');
+      }
+
+      await page.waitForLoadState('domcontentloaded', { timeout: 15000 });
+      await page.waitForURL(/contacts\/manage-contacts/i, { timeout: 15000 }).catch(() => {});
+      await page.waitForTimeout(1500);
+
+      console.log(`ℹ️ Reached contacts page at ${await page.url()}`);
+
+      const supplierSelectors = [
+        'button:has-text("Supplier")',
+        'button:has-text("Suppliers")',
+        'text=/^\\s*Supplier\\s*$/',
+      ];
+
+      for (const selector of supplierSelectors) {
         try {
-          const vendorElement = this.page.locator(selector).first();
-          const isVisible = await vendorElement.isVisible({ timeout: 3000 }).catch(() => false);
-          if (isVisible) {
-            const vendorName = await vendorElement.innerText().catch(() => '');
-            if (vendorName && vendorName.trim()) {
-              const trimmedName = vendorName.trim();
-              console.log(`ℹ️ Found vendor name from manage contacts: "${trimmedName}"`);
-              return trimmedName;
+          const supplierButton = page.locator(selector).first();
+          const visible = await supplierButton.isVisible({ timeout: 2000 }).catch(() => false);
+          if (visible) {
+            await supplierButton.click();
+            await page.waitForTimeout(1500);
+            console.log('ℹ️ Supplier filter applied');
+            break;
+          }
+        } catch {
+          // Continue trying other selectors
+        }
+      }
+
+      const tableLocator = page.locator('table[id^="kt_datatable"], table.dataTable').first();
+
+      try {
+        await tableLocator.waitFor({ state: 'visible', timeout: 10000 });
+      } catch {
+        console.log('ℹ️ Supplier table not immediately visible, waiting for rows...');
+      }
+
+      const headerCells = await tableLocator.locator('thead tr th').allInnerTexts().catch(() => []);
+      const normalizedHeaders = headerCells.map((text) => text.trim().toLowerCase());
+      const contactIndex = normalizedHeaders.findIndex((text) => text.includes('contact'));
+      const businessIndex = normalizedHeaders.findIndex((text) => text.includes('business'));
+      const gstinIndex = normalizedHeaders.findIndex((text) => text.includes('gst'));
+
+      const rows = tableLocator.locator('tbody tr');
+      try {
+        await rows.first().waitFor({ state: 'visible', timeout: 10000 });
+      } catch {
+        console.log('ℹ️ Supplier rows not visible after initial wait');
+      }
+
+      const rowCount = await rows.count().catch(() => 0);
+
+      if (rowCount === 0) {
+        const fallbackListItems = await page
+          .locator('[data-testid*="contact"], .contact-card, [class*="contact"]')
+          .count()
+          .catch(() => 0);
+        console.log(`ℹ️ Manage contacts table rows: ${rowCount}, fallback items: ${fallbackListItems}`);
+      } else {
+        const sampleRows = await rows
+          .evaluateAll((elements) =>
+            elements.slice(0, 3).map((el) => ({
+              text: (el.textContent || '').trim().replace(/\s+/g, ' '),
+            })),
+          )
+          .catch(() => []);
+        if (sampleRows.length > 0) {
+          console.log(`ℹ️ Sample manage contacts rows: ${JSON.stringify(sampleRows)}`);
+        }
+      }
+
+      const gstinRegex = /\b[0-9A-Z]{15}\b/;
+
+      for (let i = 0; i < rowCount && i < 20 && !vendorResult; i += 1) {
+        const row = rows.nth(i);
+        try {
+          const cells = row.locator('td');
+          const cellCount = await cells.count();
+          if (cellCount === 0) continue;
+
+          const contactCellText =
+            contactIndex >= 0 && contactIndex < cellCount
+              ? (await cells.nth(contactIndex).innerText().catch(() => '')).split('\n')[0]?.trim() ?? ''
+              : '';
+          const businessCellText =
+            businessIndex >= 0 && businessIndex < cellCount
+              ? (await cells.nth(businessIndex).innerText().catch(() => '')).split('\n')[0]?.trim() ?? ''
+              : '';
+
+          let gstinMatch = '';
+          if (gstinIndex >= 0 && gstinIndex < cellCount) {
+            const gstCellText = (await cells.nth(gstinIndex).innerText().catch(() => '')).trim();
+            const match = gstCellText.match(gstinRegex);
+            if (match && match[0]) {
+              gstinMatch = match[0];
+            }
+          }
+
+          if (!gstinMatch) {
+            const cellTexts = await cells.allInnerTexts();
+            for (const text of cellTexts) {
+              const trimmed = text.trim();
+              const match = trimmed.match(gstinRegex);
+              if (match && match[0]) {
+                gstinMatch = match[0];
+                break;
+              }
+            }
+          }
+
+          if (gstinMatch) {
+            if (this.isValidVendorCandidate(contactCellText, normalizedExcludes)) {
+              vendorResult = contactCellText;
+            } else if (this.isValidVendorCandidate(businessCellText, normalizedExcludes)) {
+              vendorResult = businessCellText;
+            }
+
+            if (vendorResult) {
+              console.log(
+                `ℹ️ Found vendor with GSTIN on manage contacts: contact="${contactCellText}" business="${businessCellText}" (GSTIN: ${gstinMatch})`,
+              );
             }
           }
         } catch {
-          continue;
+          // Continue evaluating rows
         }
       }
-      
-      console.log('ℹ️ No vendor name found in manage contacts page');
-      return null;
+
+      if (!vendorResult) {
+        for (let i = 0; i < rowCount && i < 10; i += 1) {
+          const row = rows.nth(i);
+
+          try {
+            const link = row.locator('td a, td[role="link"]').first();
+            const linkVisible = await link.isVisible({ timeout: 1000 }).catch(() => false);
+            if (linkVisible) {
+              const linkText = (await link.innerText().catch(() => '')).trim();
+              if (this.isValidVendorCandidate(linkText, normalizedExcludes)) {
+                console.log(`ℹ️ Found vendor name from manage contacts (link): "${linkText}"`);
+                vendorResult = linkText;
+                break;
+              }
+            }
+          } catch {
+            // Ignore and fall back to cell text extraction
+          }
+
+          try {
+            const cells = row.locator('td');
+            const cellCount = await cells.count();
+            for (let j = 0; j < cellCount; j += 1) {
+              const cellText = (await cells.nth(j).innerText().catch(() => '')).trim();
+              if (this.isValidVendorCandidate(cellText, normalizedExcludes)) {
+                console.log(`ℹ️ Found vendor name from manage contacts (cell): "${cellText}"`);
+                vendorResult = cellText;
+                break;
+              }
+            }
+            if (vendorResult) break;
+          } catch {
+            // Continue to next row
+          }
+        }
+      }
+
+      if (!vendorResult) {
+        const vendorSelectors = [
+          'table tbody tr:first-child td:first-child',
+          'table tbody tr:first-child td:nth-child(2)',
+          '[class*="table"] tbody tr:first-child td',
+          'tbody tr:first-child td',
+          '[data-testid*="vendor"]:first-child',
+          '.vendor-name:first-child',
+          'tr:first-child td:first-child',
+        ];
+
+        for (const selector of vendorSelectors) {
+          try {
+            const vendorElement = page.locator(selector).first();
+            const isVisible = await vendorElement.isVisible({ timeout: 3000 }).catch(() => false);
+            if (isVisible) {
+              const vendorName = await vendorElement.innerText().catch(() => '');
+              const trimmedName = vendorName.trim();
+              if (this.isValidVendorCandidate(trimmedName, normalizedExcludes)) {
+                console.log(`ℹ️ Found vendor name from manage contacts (fallback): "${trimmedName}"`);
+                vendorResult = trimmedName;
+                break;
+              }
+            }
+          } catch {
+            continue;
+          }
+        }
+      }
+
+      if (!vendorResult) {
+        console.log('ℹ️ No vendor name found in manage contacts page');
+      }
     } catch (error) {
       console.log(`ℹ️ Error fetching vendor name: ${(error as Error).message}`);
-      return null;
+    } finally {
+      await page.waitForTimeout(500);
     }
+
+    return vendorResult;
+  }
+
+  private isValidVendorCandidate(candidate: string, normalizedExcludes: string[]): boolean {
+    if (!candidate) {
+      return false;
+    }
+
+    const trimmed = candidate.trim();
+    if (!trimmed) {
+      return false;
+    }
+
+    if (trimmed.length < 2) {
+      return false;
+    }
+
+    const lower = trimmed.toLowerCase();
+    if (normalizedExcludes.includes(lower)) {
+      return false;
+    }
+
+    const disallowedExact = new Set([
+      'vendor',
+      'customer',
+      'gstin',
+      'gst number',
+      'email',
+      'phone',
+      'mobile',
+      'status',
+      'account',
+      'action',
+      'actions',
+      'active',
+      'inactive',
+      'created on',
+      'ledger',
+      'ledgers',
+    ]);
+
+    if (disallowedExact.has(lower)) {
+      return false;
+    }
+
+    if (!/[a-zA-Z]/.test(trimmed)) {
+      return false;
+    }
+
+    if (trimmed.includes('@')) {
+      return false;
+    }
+
+    return true;
   }
 
   async fetchItemNameFromManageCatalog(): Promise<string | null> {
+    const page = this.page;
     try {
-      console.log('ℹ️ Fetching item name from manage catalog page...');
-      await this.page.goto('https://in.ledgers.cloud/catalog/manage-catalog', { waitUntil: 'networkidle', timeout: 30000 });
-      await this.page.waitForTimeout(2000);
-      
-      // Try to find the first item name in the table/list
+      console.log('ℹ️ Navigating via Manage menu to Catalog to fetch item name...');
+
+      const manageMenu = page.locator('text=/^Manage$/').first();
+      await manageMenu.waitFor({ state: 'visible', timeout: 20000 });
+      await manageMenu.click();
+      await page.waitForTimeout(500);
+
+      const catalogSelectors = [
+        'text=/^Catalog$/',
+        'text=/Catalog Management/',
+        'a[href*="/catalog/manage-catalog"]',
+        '[data-testid="menu-item-catalog"]',
+      ];
+
+      let catalogOpened = false;
+      for (const selector of catalogSelectors) {
+        const catalogMenu = page.locator(selector).first();
+        const visible = await catalogMenu.isVisible({ timeout: 2000 }).catch(() => false);
+        if (visible) {
+          await catalogMenu.click();
+          console.log(`ℹ️ Opened Catalog using selector: ${selector}`);
+          catalogOpened = true;
+          break;
+        }
+      }
+
+      if (!catalogOpened) {
+        throw new Error('Manage → Catalog menu item not found');
+      }
+
+      await page.waitForLoadState('domcontentloaded', { timeout: 15000 });
+      await page.waitForURL(/catalog\/manage-catalog/i, { timeout: 15000 }).catch(() => {});
+      await page.waitForTimeout(1500);
+      console.log(`ℹ️ Reached catalog page at ${await page.url()}`);
+
       const itemSelectors = [
         'table tbody tr:first-child td:first-child',
         'table tbody tr:first-child td:nth-child(2)',
@@ -104,12 +396,12 @@ export class CreatePurchaseOrderPage {
         '[data-testid*="product"]:first-child',
         '.item-name:first-child',
         '.product-name:first-child',
-        'tr:first-child td:first-child'
+        'tr:first-child td:first-child',
       ];
-      
+
       for (const selector of itemSelectors) {
         try {
-          const itemElement = this.page.locator(selector).first();
+          const itemElement = page.locator(selector).first();
           const isVisible = await itemElement.isVisible({ timeout: 3000 }).catch(() => false);
           if (isVisible) {
             const itemName = await itemElement.innerText().catch(() => '');
@@ -123,23 +415,30 @@ export class CreatePurchaseOrderPage {
           continue;
         }
       }
-      
+
       console.log('ℹ️ No item name found in manage catalog page');
       return null;
     } catch (error) {
       console.log(`ℹ️ Error fetching item name: ${(error as Error).message}`);
       return null;
+    } finally {
+      await page.waitForTimeout(500);
     }
   }
 
-  async createPurchaseOrder(supplier: string, item: string) {
+  async createPurchaseOrder(
+    supplier: string,
+    item: string,
+    options: { excludeNames?: string[] } = {},
+  ) {
     // Before entering vendor and item, fetch them from manage pages if not provided
     let actualSupplier = supplier;
     let actualItem = item;
+    const excludeVendorNames = options.excludeNames ?? [];
     
     // If supplier is empty or default, fetch from manage contacts
     if (!supplier || supplier === 'default' || supplier === '') {
-      const fetchedVendor = await this.fetchVendorNameFromManageContacts();
+      const fetchedVendor = await this.fetchVendorNameFromManageContacts(excludeVendorNames);
       if (fetchedVendor) {
         actualSupplier = fetchedVendor;
         console.log(`ℹ️ Using vendor from manage contacts: "${actualSupplier}"`);
@@ -156,47 +455,86 @@ export class CreatePurchaseOrderPage {
     }
     
     // Open Create → Purchases → Purchase Order via hover (with proper waits)
-    const create = this.page.locator(this.createMenu).first();
-    await create.waitFor({ state: 'visible', timeout: 30000 });
-    
+    let createMenuLocator = null;
+    for (const selector of this.createMenuSelectors) {
+      const candidate = this.page.locator(selector).first();
+      const visible = await candidate.isVisible({ timeout: 2000 }).catch(() => false);
+      if (visible) {
+        createMenuLocator = candidate;
+        break;
+      }
+    }
+
+    if (!createMenuLocator) {
+      throw new Error('Create menu not visible on current page');
+    }
+
+    await createMenuLocator.waitFor({ state: 'visible', timeout: 30000 });
+
     // First, try clicking Create to open the menu (more reliable than hover)
-    await create.click();
+    await createMenuLocator.click();
     await this.page.waitForTimeout(1000); // Wait for menu to open
     
     // Now try to find Purchases section - it should be visible after clicking
-    const purchaseSection = this.page.locator(this.purchaseSection).first();
-    let purchaseVisible = await purchaseSection.isVisible({ timeout: 3000 }).catch(() => false);
-    
-    if (!purchaseVisible) {
-      // If not visible after click, try hovering over Create
-      await create.hover();
-      await this.page.waitForTimeout(1000);
-      purchaseVisible = await purchaseSection.isVisible({ timeout: 3000 }).catch(() => false);
-    }
-    
-    if (purchaseVisible) {
-      // Hover over Purchases to reveal Purchase Order submenu
-      await purchaseSection.hover();
-      await this.page.waitForTimeout(1000); // Wait for submenu to expand
-    } else {
-      // If still not visible, try force hover
-      console.log('ℹ️ Purchases section not visible, trying force hover');
-      await purchaseSection.hover({ force: true });
-      await this.page.waitForTimeout(1000);
-    }
-    
-    // Now wait for Purchase Order menu item to be visible
     const poMenu = this.page.locator(this.purchaseOrderMenuItem).first();
-    await poMenu.waitFor({ state: 'visible', timeout: 30000 });
+    let poVisible = await poMenu.isVisible({ timeout: 3000 }).catch(() => false);
+
+    if (!poVisible) {
+      const purchaseSection = this.page
+        .locator(`${this.purchaseSection}, span.menu-title:has-text("Purchases")`)
+        .first();
+      let purchaseVisible = await purchaseSection.isVisible({ timeout: 3000 }).catch(() => false);
+
+      if (!purchaseVisible) {
+        await createMenuLocator.hover();
+        await this.page.waitForTimeout(1000);
+        purchaseVisible = await purchaseSection.isVisible({ timeout: 3000 }).catch(() => false);
+      }
+
+      if (purchaseVisible) {
+        await purchaseSection.hover();
+        await this.page.waitForTimeout(1000);
+      } else {
+        console.log('ℹ️ Purchases section not visible, trying direct selector search');
+      }
+
+      poVisible = await poMenu.isVisible({ timeout: 3000 }).catch(() => false);
+    }
     
-    // Click Purchase Order
-    await poMenu.click();
+    if (!poVisible) {
+      const poSelectors = [
+        'text=/Purchase Order/i',
+        'a[href*="purchase-order"]',
+        '[data-testid*="purchase-order"]',
+        'span.menu-title:has-text("Purchase Order")',
+        'div.menu-item:has-text("Purchase Order")',
+        'button:has-text("Purchase Order")',
+      ];
 
-    // Decrease zoom size before entering vendor (to help with visibility/clicking)
-    await this.page.evaluate(() => { (document.body as any).style.zoom = '80%'; });
-    await this.page.waitForTimeout(500);
+      for (const selector of poSelectors) {
+        const candidate = this.page.locator(selector).first();
+        const visible = await candidate.isVisible({ timeout: 3000 }).catch(() => false);
+        if (visible) {
+          await candidate.click();
+          poVisible = true;
+          break;
+        }
+      }
 
+      if (!poVisible) {
+        throw new Error('Purchase Order menu item not visible under Create menu');
+      }
+    } else {
+      await poMenu.click();
+    }
+    
+    // Wait for navigation or modal
+    await this.page.waitForTimeout(1000);
+
+    // Ensure supplier field is visible before interacting
     await this.page.waitForSelector(this.supplierInput, { timeout: 30000 });
+    await this.page.locator(this.supplierInput).scrollIntoViewIfNeeded().catch(() => {});
+    await this.page.waitForTimeout(200);
     await this.page.fill(this.supplierInput, actualSupplier);
     // Give the dropdown a moment to populate suggestions
     await this.page.waitForTimeout(3000);
@@ -343,18 +681,21 @@ export class CreatePurchaseOrderPage {
     }
 
     // Fill item name and wait for dropdown list to appear
+    await this.page.locator(this.itemInput).scrollIntoViewIfNeeded().catch(() => {});
+    await this.page.waitForTimeout(200);
+    await this.page.fill(this.itemInput, '');
     await this.page.fill(this.itemInput, actualItem);
     await this.page.waitForTimeout(1500); // Initial wait for dropdown to start loading
     
     // Wait for dropdown list to appear after input is given
     const dropdownContainers = [
       '[class*="select2-results"]',
-      '[class*="dropdown"]',
-      '[class*="option"]',
+      '[class*="select2"] ul',
       '[role="listbox"]',
-      '[role="option"]',
-      '.ant-select-dropdown',
       '.select2-dropdown',
+      '.ant-select-dropdown',
+      'div[role="listbox"]',
+      '[class*="dropdown"]',
       '[class*="menu"]',
       '[class*="list"]',
       'ul[class*="menu"]',
@@ -381,8 +722,11 @@ export class CreatePurchaseOrderPage {
     
     // Additional wait for dropdown list items to populate
     if (dropdownVisible) {
-      await this.page.waitForTimeout(2000); // Wait for items to load in the list
-      console.log('ℹ️ Dropdown list is visible, checking items in the list...');
+      console.log('ℹ️ Dropdown list is visible, pressing ArrowDown to highlight first option');
+      await this.page.keyboard.press('ArrowDown');
+      await this.page.waitForTimeout(300);
+      await this.page.waitForTimeout(1700); // Wait for items to load in the list
+      console.log('ℹ️ Checking dropdown items...');
     } else {
       // If no dropdown container found, wait a bit more
       await this.page.waitForTimeout(3000);
@@ -392,8 +736,68 @@ export class CreatePurchaseOrderPage {
     // Check if item is listed in the dropdown below
     const itemLower = actualItem.toLowerCase();
     let itemFound = false;
+
+    // Prioritize selectors that match list options by text
+    const dropdownOptionSelectors = [
+      '[role="option"]',
+      'li[role="option"]',
+      '.select2-results__option',
+      '.select2-results__option span',
+      '.ant-select-item-option',
+      '.ant-select-item-option-content',
+      'ul[role="listbox"] li',
+      'div[role="option"]',
+    ];
+
+    for (const selector of dropdownOptionSelectors) {
+      const allOptions = this.page.locator(selector);
+      const optionCount = await allOptions.count().catch(() => 0);
+      if (optionCount === 0) continue;
+
+      try {
+        const optionTexts = await allOptions.evaluateAll((elements) =>
+          elements.map((el) => (el.textContent || '').trim()),
+        );
+        console.log(`ℹ️ Dropdown options for selector "${selector}": ${JSON.stringify(optionTexts)}`);
+      } catch {
+        // ignore logging failure
+      }
+
+      for (let idx = 0; idx < optionCount; idx += 1) {
+        const option = allOptions.nth(idx);
+        const text = (await option.innerText().catch(() => '')).trim();
+        if (!text) continue;
+        const optionTextLower = text.toLowerCase();
+
+        if (
+          optionTextLower.includes(itemLower) &&
+          !optionTextLower.includes('add item') &&
+          !optionTextLower.includes('create item') &&
+          !optionTextLower.includes('purchase') &&
+          optionTextLower !== 'add item' &&
+          optionTextLower !== 'create item'
+        ) {
+          console.log(`ℹ️ Selecting dropdown option via selector "${selector}": "${text}"`);
+          await option.scrollIntoViewIfNeeded().catch(() => {});
+          await option.hover().catch(() => {});
+          await this.page.waitForTimeout(200);
+          try {
+            await option.click({ timeout: 3000 });
+          } catch {
+            await option.click({ force: true, timeout: 3000 });
+          }
+          itemFound = true;
+          await this.page.waitForTimeout(1500);
+          break;
+        }
+      }
+
+      if (itemFound) {
+        break;
+      }
+    }
     
-    // Try multiple selectors to find the item in the dropdown list (after input is given)
+    // Try multiple XPath/text selectors if still not found
     const itemSelectors = [
       `//li[contains(text(), "${actualItem}") and not(contains(text(), "Add Item")) and not(contains(text(), "Create Item"))]`,
       `//span[contains(text(), "${actualItem}") and not(contains(text(), "Add Item")) and not(contains(text(), "Create Item"))]`,
@@ -475,7 +879,9 @@ export class CreatePurchaseOrderPage {
     
     // If item not found in dropdown, try pressing Enter or Tab to create new item or select
     if (!itemFound) {
-      console.log(`ℹ️ Item "${actualItem}" not found in dropdown after multiple attempts, pressing Enter`);
+      console.log(`ℹ️ Item "${actualItem}" not found directly; using keyboard navigation`);
+      await this.page.keyboard.press('ArrowDown');
+      await this.page.waitForTimeout(400);
       await this.page.keyboard.press('Enter');
       await this.page.waitForTimeout(3000); // Wait longer for item to be added/selected
     }
@@ -517,26 +923,32 @@ export class CreatePurchaseOrderPage {
 
   async attemptCreatePurchaseOrderWithGstin(supplier: string, gstin: string) {
     // Navigate to Purchase Order page (same as createPurchaseOrder with proper hover waits)
-    const create = this.page.locator(this.createMenu).first();
-    await create.waitFor({ state: 'visible', timeout: 30000 });
-    
-    // Hover over Create menu to reveal submenu
-    await create.hover();
-    await this.page.waitForTimeout(500); // Wait for submenu animation
-    
-    // Wait for Purchases section to be visible in the submenu
-    const purchaseSection = this.page.locator(this.purchaseSection).first();
+    let createMenuLocator = null;
+    for (const selector of this.createMenuSelectors) {
+      const candidate = this.page.locator(selector).first();
+      const visible = await candidate.isVisible({ timeout: 2000 }).catch(() => false);
+      if (visible) {
+        createMenuLocator = candidate;
+        break;
+      }
+    }
+    if (!createMenuLocator) {
+      throw new Error('Create menu not visible on current page');
+    }
+
+    await createMenuLocator.waitFor({ state: 'visible', timeout: 30000 });
+    await createMenuLocator.hover();
+    await this.page.waitForTimeout(500);
+
+    const purchaseSection = this.page
+      .locator(`${this.purchaseSection}, span.menu-title:has-text("Purchases")`)
+      .first();
     await purchaseSection.waitFor({ state: 'visible', timeout: 10000 });
-    
-    // Hover over Purchases to reveal Purchase Order submenu
     await purchaseSection.hover();
-    await this.page.waitForTimeout(500); // Wait for submenu to expand
-    
-    // Now wait for Purchase Order menu item to be visible
+    await this.page.waitForTimeout(500);
+
     const poMenu = this.page.locator(this.purchaseOrderMenuItem).first();
     await poMenu.waitFor({ state: 'visible', timeout: 30000 });
-    
-    // Click Purchase Order
     await poMenu.click();
 
     await this.page.waitForSelector(this.supplierInput, { timeout: 30000 });

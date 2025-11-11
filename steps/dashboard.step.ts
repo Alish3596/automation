@@ -14,7 +14,7 @@ let loginPage: LoginPage;
 let dashboardPage: DashboardPage;
 let menuPage: MenuPage;
 
-Given('the user has logged into Ledger Cloud', async function () {
+Given('the user has logged into Ledger Cloud', async function (this: CustomWorld) {
   await this.launchBrowser();
 
   loginPage = new LoginPage(this.page);
@@ -27,11 +27,12 @@ Given('the user has logged into Ledger Cloud', async function () {
   await loginPage.verifyLogin('success');
 });
 
-When('the user selects the business {string}', async function (businessName: string) {
+When('the user selects the business {string}', async function (this: CustomWorld, businessName: string) {
+  this.selectedBusinessName = businessName;
   await dashboardPage.openAllAccounts();
   await dashboardPage.selectBusinessAndOpenLedgers(businessName);
 });
 
-Then('the Ledgers page should be displayed', async function () {
+Then('the Ledgers page should be displayed', async function (this: CustomWorld) {
   await menuPage.verifyCreateMenuVisible(); // ✅ now checks for "Create" menu visibility
 });
