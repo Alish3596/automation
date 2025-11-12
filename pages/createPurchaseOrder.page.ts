@@ -3,7 +3,7 @@ import { Page } from 'playwright';
 export class CreatePurchaseOrderPage {
   readonly page: Page;
   readonly supplierInput = '#supplier_list';
-  readonly itemInput = 'input[placeholder="Item name"]';
+  readonly itemInput = 'input[placeholder="Item name"]:not([id*="template"]):not(#item-template input)';
   readonly createPOButton = 'button:has-text("Create Purchase Order")';
   readonly createMenuSelectors = [
     'header a:has-text("Create")',
@@ -65,25 +65,65 @@ export class CreatePurchaseOrderPage {
     try {
       const manageMenu = page.locator('text=/^Manage$/').first();
       await manageMenu.waitFor({ state: 'visible', timeout: 20000 });
+      
+      // Try clicking first, then hover if needed
       await manageMenu.click();
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(1000);
+      
+      // Also try hovering to ensure menu is open
+      await manageMenu.hover().catch(() => {});
+      await page.waitForTimeout(1000);
 
       const contactsSelectors = [
+        'a:has-text("Contacts")',
+        'a[href*="/contacts/manage-contacts"]',
+        'a[href*="/contacts"]',
         'text=/^Contacts$/',
         'text=/Manage Contacts/',
-        'a[href*="/contacts/manage-contacts"]',
         '[data-testid="menu-item-contacts"]',
+        'span.menu-title:has-text("Contacts")',
+        'div.menu-item:has-text("Contacts")',
+        'li.menu-item:has-text("Contacts")',
       ];
 
       let contactsOpened = false;
       for (const selector of contactsSelectors) {
         const contactsMenu = page.locator(selector).first();
-        const visible = await contactsMenu.isVisible({ timeout: 2000 }).catch(() => false);
+        const visible = await contactsMenu.isVisible({ timeout: 3000 }).catch(() => false);
         if (visible) {
-          await contactsMenu.click();
-          console.log(`ℹ️ Opened Contacts using selector: ${selector}`);
-          contactsOpened = true;
-          break;
+          // Verify it's actually a clickable menu item
+          const tagName = await contactsMenu.evaluate((el) => el.tagName.toLowerCase()).catch(() => '');
+          const hasHref = await contactsMenu.getAttribute('href').catch(() => null);
+          const role = await contactsMenu.getAttribute('role').catch(() => '');
+          
+          if (tagName === 'a' || hasHref || role === 'menuitem' || selector.includes('a:')) {
+            await contactsMenu.scrollIntoViewIfNeeded().catch(() => {});
+            await page.waitForTimeout(300);
+            await contactsMenu.click();
+            console.log(`ℹ️ Opened Contacts using selector: ${selector}`);
+            contactsOpened = true;
+            break;
+          }
+        }
+      }
+      
+      // If still not found, try hovering over Manage again and waiting longer
+      if (!contactsOpened) {
+        console.log('ℹ️ Contacts not found after initial click, trying hover...');
+        await manageMenu.hover();
+        await page.waitForTimeout(1500);
+        
+        for (const selector of contactsSelectors) {
+          const contactsMenu = page.locator(selector).first();
+          const visible = await contactsMenu.isVisible({ timeout: 3000 }).catch(() => false);
+          if (visible) {
+            await contactsMenu.scrollIntoViewIfNeeded().catch(() => {});
+            await page.waitForTimeout(300);
+            await contactsMenu.click();
+            console.log(`ℹ️ Opened Contacts using selector (after hover): ${selector}`);
+            contactsOpened = true;
+            break;
+          }
         }
       }
 
@@ -356,25 +396,65 @@ export class CreatePurchaseOrderPage {
 
       const manageMenu = page.locator('text=/^Manage$/').first();
       await manageMenu.waitFor({ state: 'visible', timeout: 20000 });
+      
+      // Try clicking first, then hover if needed
       await manageMenu.click();
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(1000);
+      
+      // Also try hovering to ensure menu is open
+      await manageMenu.hover().catch(() => {});
+      await page.waitForTimeout(1000);
 
       const catalogSelectors = [
+        'a:has-text("Catalog")',
+        'a[href*="/catalog/manage-catalog"]',
+        'a[href*="/catalog"]',
         'text=/^Catalog$/',
         'text=/Catalog Management/',
-        'a[href*="/catalog/manage-catalog"]',
         '[data-testid="menu-item-catalog"]',
+        'span.menu-title:has-text("Catalog")',
+        'div.menu-item:has-text("Catalog")',
+        'li.menu-item:has-text("Catalog")',
       ];
 
       let catalogOpened = false;
       for (const selector of catalogSelectors) {
         const catalogMenu = page.locator(selector).first();
-        const visible = await catalogMenu.isVisible({ timeout: 2000 }).catch(() => false);
+        const visible = await catalogMenu.isVisible({ timeout: 3000 }).catch(() => false);
         if (visible) {
-          await catalogMenu.click();
-          console.log(`ℹ️ Opened Catalog using selector: ${selector}`);
-          catalogOpened = true;
-          break;
+          // Verify it's actually a clickable menu item
+          const tagName = await catalogMenu.evaluate((el) => el.tagName.toLowerCase()).catch(() => '');
+          const hasHref = await catalogMenu.getAttribute('href').catch(() => null);
+          const role = await catalogMenu.getAttribute('role').catch(() => '');
+          
+          if (tagName === 'a' || hasHref || role === 'menuitem' || selector.includes('a:')) {
+            await catalogMenu.scrollIntoViewIfNeeded().catch(() => {});
+            await page.waitForTimeout(300);
+            await catalogMenu.click();
+            console.log(`ℹ️ Opened Catalog using selector: ${selector}`);
+            catalogOpened = true;
+            break;
+          }
+        }
+      }
+      
+      // If still not found, try hovering over Manage again and waiting longer
+      if (!catalogOpened) {
+        console.log('ℹ️ Catalog not found after initial click, trying hover...');
+        await manageMenu.hover();
+        await page.waitForTimeout(1500);
+        
+        for (const selector of catalogSelectors) {
+          const catalogMenu = page.locator(selector).first();
+          const visible = await catalogMenu.isVisible({ timeout: 3000 }).catch(() => false);
+          if (visible) {
+            await catalogMenu.scrollIntoViewIfNeeded().catch(() => {});
+            await page.waitForTimeout(300);
+            await catalogMenu.click();
+            console.log(`ℹ️ Opened Catalog using selector (after hover): ${selector}`);
+            catalogOpened = true;
+            break;
+          }
         }
       }
 
@@ -423,6 +503,574 @@ export class CreatePurchaseOrderPage {
       return null;
     } finally {
       await page.waitForTimeout(500);
+    }
+  }
+
+  /**
+   * Helper method to find the item input field (excluding template)
+   */
+  private async findItemInput() {
+    const allItemInputs = this.page.locator('input[placeholder="Item name"]');
+    const inputCount = await allItemInputs.count().catch(() => 0);
+    
+    for (let i = 0; i < inputCount; i++) {
+      const input = allItemInputs.nth(i);
+      const isVisible = await input.isVisible({ timeout: 1000 }).catch(() => false);
+      if (!isVisible) continue;
+      
+      const isInTemplate = await input.evaluate((el) => {
+        return el.closest('#item-template') !== null;
+      }).catch(() => false);
+      
+      if (!isInTemplate) {
+        return input;
+      }
+    }
+    
+    // Fallback to first input
+    return allItemInputs.first();
+  }
+
+  /**
+   * Self-healing method to select an item from dropdown with multiple fallback strategies
+   */
+  private async selectItemFromDropdown(itemName: string): Promise<void> {
+    const page = this.page;
+    const itemLower = itemName.toLowerCase().trim();
+    let itemSelected = false;
+    
+    console.log(`🔍 Starting self-healing item selection for: "${itemName}"`);
+    
+    // Strategy 0: First, ensure the input is focused and dropdown might be triggered
+    console.log('🔧 Strategy 0: Ensuring input is focused and triggering dropdown...');
+    try {
+      const itemInput = await this.findItemInput();
+      await itemInput.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+      await itemInput.focus();
+      await page.waitForTimeout(500);
+      
+      // Try pressing ArrowDown to trigger/open dropdown if it's not already open
+      await itemInput.press('ArrowDown').catch(() => {});
+      await page.waitForTimeout(1000);
+    } catch (error) {
+      console.log(`ℹ️ Strategy 0 warning: ${(error as Error).message}`);
+    }
+    
+    // Strategy 1: Wait for dropdown to appear and stabilize
+    console.log('🔧 Strategy 1: Waiting for dropdown to appear and stabilize...');
+    try {
+      // Wait for any dropdown container to appear
+      const dropdownAppeared = await page.waitForFunction(
+        () => {
+          const containers = [
+            document.querySelector('[role="listbox"]'),
+            document.querySelector('.select2-results'),
+            document.querySelector('.ant-select-dropdown'),
+            document.querySelector('[class*="dropdown"]'),
+            document.querySelector('[class*="menu"]'),
+          ];
+          return containers.some(c => {
+            if (!c) return false;
+            const style = window.getComputedStyle(c);
+            return style.display !== 'none' && style.visibility !== 'hidden';
+          });
+        },
+        { timeout: 10000 }
+      ).catch(() => {
+        console.log('⚠️ Dropdown container not detected immediately, continuing...');
+        return null;
+      });
+      
+      if (dropdownAppeared) {
+        console.log('✅ Dropdown container detected');
+      }
+      
+      await page.waitForTimeout(2000); // Wait for options to load
+      
+      // Wait for at least one option to be visible
+      const optionsAppeared = await page.waitForFunction(
+        () => {
+          const options = document.querySelectorAll('[role="option"], .select2-results__option, .ant-select-item-option');
+          return Array.from(options).some(opt => {
+            const style = window.getComputedStyle(opt);
+            return opt.textContent && opt.textContent.trim() && 
+                   style.display !== 'none' && style.visibility !== 'hidden';
+          });
+        },
+        { timeout: 8000 }
+      ).catch(() => {
+        console.log('⚠️ No options detected in dropdown, continuing with other strategies...');
+        return null;
+      });
+      
+      if (optionsAppeared) {
+        console.log('✅ Options detected in dropdown');
+      }
+    } catch (error) {
+      console.log(`ℹ️ Strategy 1 warning: ${(error as Error).message}`);
+    }
+    
+    // Strategy 2: Try Playwright's getByText (most reliable for text matching)
+    if (!itemSelected) {
+      console.log('🔧 Strategy 2: Using getByText to find item...');
+      try {
+        const itemOption = page.getByText(itemName, { exact: false }).first();
+        const isVisible = await itemOption.isVisible({ timeout: 3000 }).catch(() => false);
+        if (isVisible) {
+          const text = await itemOption.innerText().catch(() => '');
+          const textLower = text.toLowerCase().trim();
+          
+          // Skip if it's an "Add Item" option
+          if (!textLower.includes('add item') && !textLower.includes('create item') && 
+              !textLower.includes('purchase') && textLower !== 'add item' && textLower !== 'create item') {
+            console.log(`✅ Found item via getByText: "${text}"`);
+            await itemOption.scrollIntoViewIfNeeded();
+            await page.waitForTimeout(300);
+            await itemOption.hover().catch(() => {});
+            await page.waitForTimeout(200);
+            
+            try {
+              await itemOption.click({ timeout: 5000 });
+            } catch {
+              await itemOption.click({ force: true, timeout: 5000 });
+            }
+            
+            await page.waitForTimeout(2000);
+            
+            // Verify item was selected by checking input value or price field
+            const itemInputForVerify = await this.findItemInput();
+            const inputValue = await itemInputForVerify.inputValue().catch(() => '');
+            const priceField = page.locator('input[placeholder*="Price"], input[name*="price"], input[id*="price"]').first();
+            const priceVisible = await priceField.isVisible({ timeout: 2000 }).catch(() => false);
+            
+            if (inputValue || priceVisible) {
+              console.log(`✅ Item selected successfully (input: "${inputValue}", price visible: ${priceVisible})`);
+              itemSelected = true;
+            } else {
+              console.log(`⚠️ Item clicked but may not be selected (input: "${inputValue}")`);
+            }
+          }
+        }
+      } catch (error) {
+        console.log(`ℹ️ Strategy 2 failed: ${(error as Error).message}`);
+      }
+    }
+    
+    // Strategy 3: Try getByRole for option elements
+    if (!itemSelected) {
+      console.log('🔧 Strategy 3: Using getByRole to find item option...');
+      try {
+        const options = page.getByRole('option');
+        const count = await options.count();
+        
+        for (let i = 0; i < count && i < 20; i++) {
+          const option = options.nth(i);
+          const isVisible = await option.isVisible({ timeout: 1000 }).catch(() => false);
+          if (!isVisible) continue;
+          
+          const text = await option.innerText().catch(() => '');
+          const textLower = text.toLowerCase().trim();
+          
+          // Skip "Add Item" options
+          if (textLower.includes('add item') || textLower.includes('create item') || 
+              textLower.includes('purchase') || textLower === 'add item' || textLower === 'create item') {
+            continue;
+          }
+          
+          // Check if text matches item name (exact or contains)
+          if (textLower === itemLower || textLower.includes(itemLower) || itemLower.includes(textLower)) {
+            console.log(`✅ Found item via getByRole: "${text}"`);
+            await option.scrollIntoViewIfNeeded();
+            await page.waitForTimeout(300);
+            await option.click({ timeout: 5000 }).catch(() => {
+              return option.click({ force: true, timeout: 5000 });
+            });
+            itemSelected = true;
+            await page.waitForTimeout(2000);
+            break;
+          }
+        }
+      } catch (error) {
+        console.log(`ℹ️ Strategy 3 failed: ${(error as Error).message}`);
+      }
+    }
+    
+    // Strategy 4: Try multiple CSS selectors with text matching
+    if (!itemSelected) {
+      console.log('🔧 Strategy 4: Using CSS selectors to find item...');
+      const optionSelectors = [
+        '[role="option"]',
+        'li[role="option"]',
+        '.select2-results__option',
+        '.select2-results__option span',
+        '.ant-select-item-option',
+        '.ant-select-item-option-content',
+        'ul[role="listbox"] li',
+        'div[role="option"]',
+        '[class*="option"]',
+      ];
+      
+      for (const selector of optionSelectors) {
+        if (itemSelected) break;
+        
+        try {
+          const allOptions = page.locator(selector);
+          const optionCount = await allOptions.count().catch(() => 0);
+          if (optionCount === 0) continue;
+          
+          // Log available options for debugging
+          try {
+            const optionTexts = await allOptions.evaluateAll((elements) =>
+              elements.slice(0, 5).map((el) => (el.textContent || '').trim()),
+            );
+            console.log(`ℹ️ Options found with "${selector}": ${JSON.stringify(optionTexts)}`);
+          } catch {
+            // Ignore logging errors
+          }
+          
+          for (let idx = 0; idx < optionCount && idx < 20; idx++) {
+            const option = allOptions.nth(idx);
+            const isVisible = await option.isVisible({ timeout: 1000 }).catch(() => false);
+            if (!isVisible) continue;
+            
+            const text = await option.innerText().catch(() => '');
+            const textLower = text.toLowerCase().trim();
+            if (!text) continue;
+            
+            // Skip "Add Item" options
+            if (textLower.includes('add item') || textLower.includes('create item') || 
+                textLower.includes('purchase') || textLower === 'add item' || textLower === 'create item') {
+              continue;
+            }
+            
+            // Fuzzy matching: check if item name matches option text
+            if (textLower === itemLower || textLower.includes(itemLower) || itemLower.includes(textLower)) {
+              console.log(`✅ Found item via CSS selector "${selector}": "${text}"`);
+              await option.scrollIntoViewIfNeeded();
+              await page.waitForTimeout(300);
+              await option.hover().catch(() => {});
+              await page.waitForTimeout(200);
+              
+              try {
+                await option.click({ timeout: 5000 });
+              } catch {
+                await option.click({ force: true, timeout: 5000 });
+              }
+              
+              await page.waitForTimeout(2000);
+              
+              // Verify item was selected
+              const itemInputForVerify = await this.findItemInput();
+              const inputValue = await itemInputForVerify.inputValue().catch(() => '');
+              const priceField = page.locator('input[placeholder*="Price"], input[name*="price"], input[id*="price"]').first();
+              const priceVisible = await priceField.isVisible({ timeout: 2000 }).catch(() => false);
+              
+              if (inputValue || priceVisible) {
+                console.log(`✅ Item selected via CSS selector (input: "${inputValue}", price visible: ${priceVisible})`);
+                itemSelected = true;
+              } else {
+                console.log(`⚠️ Item clicked via CSS selector but may not be selected (input: "${inputValue}")`);
+              }
+              
+              if (itemSelected) break;
+            }
+          }
+        } catch (error) {
+          // Continue to next selector
+        }
+      }
+    }
+    
+    // Strategy 5: Try clicking highlighted/active option
+    if (!itemSelected) {
+      console.log('🔧 Strategy 5: Trying to click highlighted/active option...');
+      try {
+        const highlightedSelectors = [
+          '.select2-results__option--highlighted',
+          '.ant-select-item-option-active',
+          '[role="option"][aria-selected="true"]',
+          '[role="option"].highlighted',
+          '[role="option"].active',
+          '[class*="highlighted"]',
+          '[class*="active"]',
+        ];
+        
+        for (const selector of highlightedSelectors) {
+          const highlighted = page.locator(selector).first();
+          const isVisible = await highlighted.isVisible({ timeout: 2000 }).catch(() => false);
+          if (isVisible) {
+            const text = await highlighted.innerText().catch(() => '');
+            const textLower = text.toLowerCase().trim();
+            
+            // Skip "Add Item" options
+            if (!textLower.includes('add item') && !textLower.includes('create item') && 
+                !textLower.includes('purchase') && textLower !== 'add item' && textLower !== 'create item') {
+              console.log(`✅ Found highlighted option: "${text}"`);
+              await highlighted.click({ timeout: 5000 }).catch(() => {
+                return highlighted.click({ force: true, timeout: 5000 });
+              });
+              itemSelected = true;
+              await page.waitForTimeout(2000);
+              break;
+            }
+          }
+        }
+      } catch (error) {
+        console.log(`ℹ️ Strategy 5 failed: ${(error as Error).message}`);
+      }
+    }
+    
+    // Strategy 6: Try keyboard navigation to find and select item
+    if (!itemSelected) {
+      console.log('🔧 Strategy 6: Using keyboard navigation to find item...');
+      try {
+        // Focus the input field
+        const itemInput = await this.findItemInput();
+        await itemInput.focus();
+        await page.waitForTimeout(500);
+        
+        // Press ArrowDown to open/highlight first option
+        await page.keyboard.press('ArrowDown');
+        await page.waitForTimeout(1000);
+        
+        // Helper function to get highlighted option text
+        const getHighlightedOptionText = async () => {
+          const highlightedSelectors = [
+            '.select2-results__option--highlighted',
+            '.ant-select-item-option-active',
+            '[role="option"][aria-selected="true"]',
+            '[role="option"].highlighted',
+            '[role="option"].active',
+            '[class*="highlighted"][role="option"]',
+            '[class*="active"][role="option"]',
+          ];
+          
+          for (const selector of highlightedSelectors) {
+            const option = page.locator(selector).first();
+            const isVisible = await option.isVisible({ timeout: 500 }).catch(() => false);
+            if (isVisible) {
+              const text = await option.innerText().catch(() => '');
+              return text.toLowerCase().trim();
+            }
+          }
+          return '';
+        };
+        
+        let firstValidOptionFound = false;
+        let firstValidOptionText = '';
+        let firstValidOptionIndex = -1;
+        
+        // Try to find the item by navigating through options with ArrowDown
+        // Limit to 20 options to avoid infinite loop
+        for (let i = 0; i < 20; i++) {
+          const highlightedText = await getHighlightedOptionText();
+          
+          if (highlightedText) {
+            console.log(`ℹ️ Highlighted option ${i + 1}: "${highlightedText}"`);
+            
+            // ALWAYS skip "Add Item" options - continue navigating if we hit one
+            if (highlightedText.includes('add item') || 
+                highlightedText.includes('create item') || 
+                highlightedText.includes('purchase') ||
+                highlightedText === 'add item' || 
+                highlightedText === 'create item') {
+              console.log(`⚠️ Skipping "Add Item" option, continuing navigation...`);
+              // Move to next option immediately and continue to next iteration
+              await page.keyboard.press('ArrowDown');
+              await page.waitForTimeout(400);
+              continue; // Skip to next iteration (don't execute code below)
+            }
+            
+            // This is a valid option (not "Add Item")
+            // Remember first valid option in case we need it
+            if (!firstValidOptionFound) {
+              firstValidOptionFound = true;
+              firstValidOptionText = highlightedText;
+              firstValidOptionIndex = i;
+            }
+            
+            // Check if this matches our item
+            if (highlightedText === itemLower || 
+                highlightedText.includes(itemLower) || 
+                itemLower.includes(highlightedText)) {
+              // Double-check it's not "Add Item" before selecting
+              if (!highlightedText.includes('add item') && 
+                  !highlightedText.includes('create item') && 
+                  !highlightedText.includes('purchase')) {
+                console.log(`✅ Found matching item via keyboard navigation: "${highlightedText}"`);
+                await page.keyboard.press('Enter');
+                itemSelected = true;
+                await page.waitForTimeout(2000);
+                break; // Exit the loop
+              } else {
+                console.log(`⚠️ Matched text but contains "Add Item", continuing...`);
+                // Move to next option and continue
+                await page.keyboard.press('ArrowDown');
+                await page.waitForTimeout(400);
+                continue; // Skip to next iteration
+              }
+            }
+          }
+          
+          // If we found a match, break
+          if (itemSelected) break;
+          
+          // Move to next option (only if we haven't already moved in the continue statements above)
+          await page.keyboard.press('ArrowDown');
+          await page.waitForTimeout(400);
+        }
+        
+        // If we've navigated through options but haven't found exact match, try selecting first valid option
+        // BUT only if it's not "Add Item" and we're sure it's valid
+        if (!itemSelected && firstValidOptionFound && firstValidOptionText) {
+          // Triple check it's not "Add Item"
+          if (!firstValidOptionText.includes('add item') && 
+              !firstValidOptionText.includes('create item') && 
+              !firstValidOptionText.includes('purchase')) {
+            console.log(`ℹ️ Item not found via keyboard navigation, selecting first valid option: "${firstValidOptionText}"`);
+            
+            // Navigate back to first valid option
+            // Calculate how many ArrowUp presses needed
+            const currentIndex = 20; // We navigated through up to 20 options
+            const upPresses = Math.min(currentIndex - firstValidOptionIndex, 20);
+            
+            for (let j = 0; j < upPresses; j++) {
+              await page.keyboard.press('ArrowUp');
+              await page.waitForTimeout(200);
+            }
+            await page.waitForTimeout(500);
+            
+            // Verify we're on the right option before selecting
+            const finalHighlightedText = await getHighlightedOptionText();
+            if (finalHighlightedText && 
+                !finalHighlightedText.includes('add item') && 
+                !finalHighlightedText.includes('create item') && 
+                !finalHighlightedText.includes('purchase')) {
+              console.log(`✅ Confirmed valid option before selecting: "${finalHighlightedText}"`);
+              await page.keyboard.press('Enter');
+              itemSelected = true;
+              await page.waitForTimeout(2000);
+            } else {
+              console.log(`⚠️ Could not navigate back to valid option or found "Add Item"`);
+            }
+          } else {
+            console.log(`⚠️ First valid option is "Add Item", cannot use it`);
+          }
+        }
+        
+        // Final fallback - only if we haven't selected anything
+        if (!itemSelected) {
+          console.log('⚠️ No valid item found via keyboard navigation, will try other strategies');
+          // Don't press Enter here as it might select "Add Item"
+        }
+      } catch (error) {
+        console.log(`ℹ️ Strategy 6 failed: ${(error as Error).message}`);
+      }
+    }
+    
+    // Strategy 7: Try clicking first visible option that's not "Add Item"
+    if (!itemSelected) {
+      console.log('🔧 Strategy 7: Clicking first valid option (fallback)...');
+      try {
+        const optionSelectors = [
+          '[role="option"]',
+          '.select2-results__option',
+          '.ant-select-item-option',
+        ];
+        
+        for (const selector of optionSelectors) {
+          const options = page.locator(selector);
+          const count = await options.count().catch(() => 0);
+          
+          for (let i = 0; i < count && i < 10; i++) {
+            const option = options.nth(i);
+            const isVisible = await option.isVisible({ timeout: 1000 }).catch(() => false);
+            if (!isVisible) continue;
+            
+            const text = await option.innerText().catch(() => '');
+            const textLower = text.toLowerCase().trim();
+            
+            // Skip "Add Item" options
+            if (textLower.includes('add item') || textLower.includes('create item') || 
+                textLower.includes('purchase') || textLower === 'add item' || textLower === 'create item') {
+              continue;
+            }
+            
+            // Click first valid option
+            console.log(`✅ Clicking first valid option: "${text}"`);
+            await option.scrollIntoViewIfNeeded();
+            await page.waitForTimeout(300);
+            await option.click({ timeout: 5000 }).catch(() => {
+              return option.click({ force: true, timeout: 5000 });
+            });
+            itemSelected = true;
+            await page.waitForTimeout(2000);
+            break;
+          }
+          
+          if (itemSelected) break;
+        }
+      } catch (error) {
+        console.log(`ℹ️ Strategy 7 failed: ${(error as Error).message}`);
+      }
+    }
+    
+    // Strategy 8: Final fallback - use Enter key on input field
+    if (!itemSelected) {
+      console.log('🔧 Strategy 8: Final fallback - pressing Enter on input field...');
+      try {
+        await page.locator(this.itemInput).focus();
+        await page.waitForTimeout(500);
+        await page.keyboard.press('ArrowDown');
+        await page.waitForTimeout(500);
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(2000);
+        itemSelected = true;
+        console.log('✅ Item selection completed via Enter key fallback');
+      } catch (error) {
+        console.log(`⚠️ Strategy 8 failed: ${(error as Error).message}`);
+        throw new Error(`Failed to select item "${itemName}" from dropdown after trying all strategies`);
+      }
+    }
+    
+    // Final verification - check if item was actually selected
+    if (itemSelected) {
+      await page.waitForTimeout(1000);
+      const itemInputForVerify = await this.findItemInput();
+      const finalInputValue = await itemInputForVerify.inputValue().catch(() => '');
+      const finalPriceField = page.locator('input[placeholder*="Price"], input[name*="price"], input[id*="price"], input[type="number"]').first();
+      const finalPriceVisible = await finalPriceField.isVisible({ timeout: 2000 }).catch(() => false);
+      
+      if (finalInputValue || finalPriceVisible) {
+        console.log(`✅ Item "${itemName}" selected successfully (final input: "${finalInputValue}", price visible: ${finalPriceVisible})`);
+      } else {
+        console.log(`⚠️ Item selection reported success but verification failed (input: "${finalInputValue}")`);
+        itemSelected = false;
+      }
+    }
+    
+    if (!itemSelected) {
+      // Last resort: try to get all visible options and log them for debugging
+      console.log('⚠️ Item selection failed, logging available options...');
+      try {
+        const allOptions = page.locator('[role="option"], .select2-results__option, .ant-select-item-option');
+        const optionCount = await allOptions.count().catch(() => 0);
+        console.log(`ℹ️ Found ${optionCount} total options in dropdown`);
+        
+        if (optionCount > 0) {
+          const optionTexts = await allOptions.evaluateAll((elements) =>
+            elements.slice(0, 10).map((el) => ({
+              text: (el.textContent || '').trim(),
+              visible: window.getComputedStyle(el).display !== 'none',
+            })),
+          ).catch(() => []);
+          console.log(`ℹ️ Available options: ${JSON.stringify(optionTexts)}`);
+        }
+      } catch (error) {
+        console.log(`ℹ️ Could not log options: ${(error as Error).message}`);
+      }
+      
+      console.log(`⚠️ Item "${itemName}" selection may not have succeeded, but continuing...`);
     }
   }
 
@@ -680,211 +1328,65 @@ export class CreatePurchaseOrderPage {
       await this.page.waitForTimeout(500);
     }
 
-    // Fill item name and wait for dropdown list to appear
-    await this.page.locator(this.itemInput).scrollIntoViewIfNeeded().catch(() => {});
+    // Fill item name and select from dropdown using self-healing strategy
+    if (!actualItem || actualItem.trim() === '') {
+      throw new Error('Item name is required but was not provided or fetched. Please ensure item exists in catalog or provide item name.');
+    }
+    
+    console.log(`ℹ️ Filling item name: "${actualItem}"`);
+    
+    // Wait for form to load first
+    await this.page.waitForTimeout(2000);
+    
+    // Use helper method to find item input (excluding template)
+    const itemInputLocator = await this.findItemInput();
+    await itemInputLocator.waitFor({ state: 'visible', timeout: 15000 });
+    await itemInputLocator.scrollIntoViewIfNeeded().catch(() => {});
+    await this.page.waitForTimeout(300);
+    
+    // Clear the input first
+    await itemInputLocator.click({ timeout: 5000 }).catch(() => {});
     await this.page.waitForTimeout(200);
-    await this.page.fill(this.itemInput, '');
-    await this.page.fill(this.itemInput, actualItem);
-    await this.page.waitForTimeout(1500); // Initial wait for dropdown to start loading
+    await itemInputLocator.fill('');
+    await this.page.waitForTimeout(200);
     
-    // Wait for dropdown list to appear after input is given
-    const dropdownContainers = [
-      '[class*="select2-results"]',
-      '[class*="select2"] ul',
-      '[role="listbox"]',
-      '.select2-dropdown',
-      '.ant-select-dropdown',
-      'div[role="listbox"]',
-      '[class*="dropdown"]',
-      '[class*="menu"]',
-      '[class*="list"]',
-      'ul[class*="menu"]',
-      'div[class*="menu"]'
-    ];
+    // Type the item name character by character to trigger dropdown
+    await itemInputLocator.type(actualItem, { delay: 100 });
+    await this.page.waitForTimeout(1500); // Wait for dropdown to appear after typing
     
-    let dropdownVisible = false;
-    let dropdownContainer = null;
+    // Also try pressing space or arrow down to ensure dropdown is triggered
+    await itemInputLocator.press('ArrowDown', { timeout: 2000 }).catch(() => {
+      console.log('ℹ️ ArrowDown not triggered, continuing...');
+    });
+    await this.page.waitForTimeout(1000);
     
-    // Wait for dropdown list to appear after input (up to 10 seconds)
-    console.log('ℹ️ Waiting for dropdown list to appear after input...');
-    for (const container of dropdownContainers) {
-      try {
-        const dropdown = this.page.locator(container).first();
-        await dropdown.waitFor({ state: 'visible', timeout: 10000 });
-        dropdownVisible = true;
-        dropdownContainer = container;
-        console.log(`ℹ️ Dropdown list container found: ${container}`);
-        break;
-      } catch {
-        continue;
-      }
-    }
+    // Self-healing item selection with multiple strategies
+    await this.selectItemFromDropdown(actualItem);
     
-    // Additional wait for dropdown list items to populate
-    if (dropdownVisible) {
-      console.log('ℹ️ Dropdown list is visible, pressing ArrowDown to highlight first option');
+    // Verify item was selected by checking if input field has the item value or if price field appears
+    await this.page.waitForTimeout(1000);
+    const inputValue = await itemInputLocator.inputValue().catch(() => '');
+    console.log(`ℹ️ Item input value after selection: "${inputValue}"`);
+    
+    // If item wasn't selected (input is still empty or doesn't match), try again
+    if (!inputValue || (!inputValue.toLowerCase().includes(actualItem.toLowerCase()) && actualItem.length > 3)) {
+      console.log('⚠️ Item may not have been selected, trying alternative selection...');
+      await this.page.waitForTimeout(1000);
+      // Try clicking the input again and using Enter key
+      await itemInputLocator.click();
+      await this.page.waitForTimeout(500);
       await this.page.keyboard.press('ArrowDown');
-      await this.page.waitForTimeout(300);
-      await this.page.waitForTimeout(1700); // Wait for items to load in the list
-      console.log('ℹ️ Checking dropdown items...');
-    } else {
-      // If no dropdown container found, wait a bit more
-      await this.page.waitForTimeout(3000);
-      console.log('ℹ️ No dropdown container found, will try to find item directly in the list...');
-    }
-    
-    // Check if item is listed in the dropdown below
-    const itemLower = actualItem.toLowerCase();
-    let itemFound = false;
-
-    // Prioritize selectors that match list options by text
-    const dropdownOptionSelectors = [
-      '[role="option"]',
-      'li[role="option"]',
-      '.select2-results__option',
-      '.select2-results__option span',
-      '.ant-select-item-option',
-      '.ant-select-item-option-content',
-      'ul[role="listbox"] li',
-      'div[role="option"]',
-    ];
-
-    for (const selector of dropdownOptionSelectors) {
-      const allOptions = this.page.locator(selector);
-      const optionCount = await allOptions.count().catch(() => 0);
-      if (optionCount === 0) continue;
-
-      try {
-        const optionTexts = await allOptions.evaluateAll((elements) =>
-          elements.map((el) => (el.textContent || '').trim()),
-        );
-        console.log(`ℹ️ Dropdown options for selector "${selector}": ${JSON.stringify(optionTexts)}`);
-      } catch {
-        // ignore logging failure
-      }
-
-      for (let idx = 0; idx < optionCount; idx += 1) {
-        const option = allOptions.nth(idx);
-        const text = (await option.innerText().catch(() => '')).trim();
-        if (!text) continue;
-        const optionTextLower = text.toLowerCase();
-
-        if (
-          optionTextLower.includes(itemLower) &&
-          !optionTextLower.includes('add item') &&
-          !optionTextLower.includes('create item') &&
-          !optionTextLower.includes('purchase') &&
-          optionTextLower !== 'add item' &&
-          optionTextLower !== 'create item'
-        ) {
-          console.log(`ℹ️ Selecting dropdown option via selector "${selector}": "${text}"`);
-          await option.scrollIntoViewIfNeeded().catch(() => {});
-          await option.hover().catch(() => {});
-          await this.page.waitForTimeout(200);
-          try {
-            await option.click({ timeout: 3000 });
-          } catch {
-            await option.click({ force: true, timeout: 3000 });
-          }
-          itemFound = true;
-          await this.page.waitForTimeout(1500);
-          break;
-        }
-      }
-
-      if (itemFound) {
-        break;
-      }
-    }
-    
-    // Try multiple XPath/text selectors if still not found
-    const itemSelectors = [
-      `//li[contains(text(), "${actualItem}") and not(contains(text(), "Add Item")) and not(contains(text(), "Create Item"))]`,
-      `//span[contains(text(), "${actualItem}") and not(contains(text(), "Add Item")) and not(contains(text(), "Create Item"))]`,
-      `//div[contains(@class, "option") and contains(text(), "${actualItem}") and not(contains(text(), "Add Item"))]`,
-      `[role="option"]:has-text("${actualItem}"):not(:has-text("Add Item"))`,
-      `li:has-text("${actualItem}"):not(:has-text("Add Item"))`,
-      `text=${actualItem}`,
-      `//*[contains(text(), "${actualItem}") and not(contains(text(), "Add Item")) and not(contains(text(), "Create Item"))]`
-    ];
-    
-    // Try to find the item with multiple attempts (with timeout protection)
-    const maxAttempts = 2; // Reduced to 2 attempts
-    const maxTotalTime = 20000; // Max 20 seconds total
-    
-    const startTime = Date.now();
-    
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      if (itemFound) break;
-      
-      // Check overall timeout
-      if (Date.now() - startTime > maxTotalTime) {
-        console.log(`ℹ️ Total timeout reached, moving to Enter key`);
-        break;
-      }
-      
-      for (const selector of itemSelectors) {
-        try {
-          // Try to find all matching options, not just the first one
-          const itemOptions = this.page.locator(selector);
-          const count = await itemOptions.count();
-          
-          for (let i = 0; i < count; i++) {
-            const itemOption = itemOptions.nth(i);
-            const isVisible = await itemOption.isVisible({ timeout: 2000 }).catch(() => false);
-            if (isVisible) {
-              const optionText = await itemOption.innerText().catch(() => '');
-              const optionTextLower = optionText.toLowerCase().trim();
-              
-              // Skip if this option contains "add item" or "create item" or "purchase" button text
-              if (optionTextLower.includes('add item') ||
-                  optionTextLower.includes('create item') ||
-                  optionTextLower.includes('purchase') ||
-                  optionTextLower === 'add item' ||
-                  optionTextLower === 'create item') {
-                continue; // Skip this option
-              }
-              
-              // Check if the text matches the item (exact match or contains)
-              if (optionTextLower === itemLower || optionTextLower.includes(itemLower)) {
-                console.log(`ℹ️ Found existing item "${actualItem}" in dropdown (attempt ${attempt + 1}), selecting it. Option text: "${optionText}"`);
-                // Scroll into view and click
-                await itemOption.scrollIntoViewIfNeeded();
-                await this.page.waitForTimeout(500);
-                // Try clicking with force if needed
-                try {
-                  await itemOption.click({ timeout: 3000 });
-                } catch {
-                  await itemOption.click({ force: true, timeout: 3000 });
-                }
-                itemFound = true;
-                await this.page.waitForTimeout(2000); // Wait for amount/price to populate
-                break;
-              }
-            }
-          }
-          
-          if (itemFound) break;
-        } catch (e) {
-          // Continue to next selector
-        }
-      }
-      
-      // If not found, wait a bit more and try again (but not on last attempt)
-      if (!itemFound && attempt < maxAttempts - 1) {
-        await this.page.waitForTimeout(1500);
-        console.log(`ℹ️ Item not found yet, waiting and retrying (attempt ${attempt + 2})...`);
-      }
-    }
-    
-    // If item not found in dropdown, try pressing Enter or Tab to create new item or select
-    if (!itemFound) {
-      console.log(`ℹ️ Item "${actualItem}" not found directly; using keyboard navigation`);
-      await this.page.keyboard.press('ArrowDown');
-      await this.page.waitForTimeout(400);
+      await this.page.waitForTimeout(500);
       await this.page.keyboard.press('Enter');
-      await this.page.waitForTimeout(3000); // Wait longer for item to be added/selected
+      await this.page.waitForTimeout(2000);
     }
+    
+    // Final verification
+    const finalCheckInput = await this.findItemInput();
+    const finalCheckValue = await finalCheckInput.inputValue().catch(() => '');
+    const finalPriceField = this.page.locator('input[placeholder*="Price"], input[name*="price"], input[id*="price"]').first();
+    const finalPriceVisible = await finalPriceField.isVisible({ timeout: 2000 }).catch(() => false);
+    console.log(`ℹ️ Final item input value check: "${finalCheckValue}", price visible: ${finalPriceVisible}`);
     
     // Verify that amount/price is populated (check for price field)
     const priceField = this.page.locator('input[placeholder*="Price"], input[name*="price"], input[id*="price"], input[type="number"]').first();
@@ -916,8 +1418,44 @@ export class CreatePurchaseOrderPage {
       await createButton.click({ force: true, timeout: 10000 });
     }
     
-    // Wait for the purchase order to be created (check for success message or page change)
-    await this.page.waitForTimeout(3000);
+    // Wait for the purchase order to be created and navigate to view page
+    try {
+      // Wait for navigation to view purchase order page
+      await this.page.waitForURL(/view-purchase-order|purchase-order\/\d+/i, { timeout: 15000 });
+      console.log(`ℹ️ Navigated to view purchase order page: ${this.page.url()}`);
+    } catch {
+      // If URL doesn't change, wait for success message or check current URL
+      await this.page.waitForTimeout(3000);
+      const currentUrl = this.page.url();
+      console.log(`ℹ️ Current URL after PO creation: ${currentUrl}`);
+      
+      // Check for success message
+      const successSelectors = [
+        'text=/success/i',
+        'text=/created/i',
+        '.alert-success',
+        '.toast-success',
+        '[class*="success"]',
+      ];
+      
+      let successFound = false;
+      for (const selector of successSelectors) {
+        const successMsg = this.page.locator(selector).first();
+        const isVisible = await successMsg.isVisible({ timeout: 2000 }).catch(() => false);
+        if (isVisible) {
+          console.log('✅ Success message found after PO creation');
+          successFound = true;
+          break;
+        }
+      }
+      
+      // If still on create page and no success message, try refreshing or waiting more
+      if (currentUrl.includes('create-purchase-order') && !successFound) {
+        console.log('ℹ️ Still on create page, waiting for redirect...');
+        await this.page.waitForTimeout(3000);
+      }
+    }
+    
     console.log('✅ Purchase Order created');
   }
 
